@@ -1,2 +1,1 @@
-# package
-常用依赖库仓库
+PACKAGE_HOME=E:/package
