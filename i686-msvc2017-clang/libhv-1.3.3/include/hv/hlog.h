@@ -139,19 +139,18 @@ HV_EXPORT void      hv_destroy_default_logger(void);
 #define hlog_get_cur_file()             logger_get_cur_file(hlog)
 
 #ifdef NDEBUG
-	#define hlogd(fmt, ...) 
-	#define hlogi(fmt, ...) logger_print(hlog, LOG_LEVEL_INFO,  fmt, ## __VA_ARGS__)
-	#define hlogw(fmt, ...) logger_print(hlog, LOG_LEVEL_WARN,  fmt, ## __VA_ARGS__)
-	#define hloge(fmt, ...) logger_print(hlog, LOG_LEVEL_ERROR, fmt, ## __VA_ARGS__)
-	#define hlogf(fmt, ...) logger_print(hlog, LOG_LEVEL_FATAL, fmt, ## __VA_ARGS__)
+    #define hlogd(fmt, ...) 
+    #define hlogi(fmt, ...) logger_print(hlog, LOG_LEVEL_INFO,  fmt, ## __VA_ARGS__)
+    #define hlogw(fmt, ...) logger_print(hlog, LOG_LEVEL_WARN,  fmt, ## __VA_ARGS__)
+    #define hloge(fmt, ...) logger_print(hlog, LOG_LEVEL_ERROR, fmt, ## __VA_ARGS__)
+    #define hlogf(fmt, ...) logger_print(hlog, LOG_LEVEL_FATAL, fmt, ## __VA_ARGS__)
 #else
-	#define hlogd(fmt, ...) logger_print(hlog, LOG_LEVEL_DEBUG, fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
-	#define hlogi(fmt, ...) logger_print(hlog, LOG_LEVEL_INFO,  fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
-	#define hlogw(fmt, ...) logger_print(hlog, LOG_LEVEL_WARN,  fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
-	#define hloge(fmt, ...) logger_print(hlog, LOG_LEVEL_ERROR, fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
-	#define hlogf(fmt, ...) logger_print(hlog, LOG_LEVEL_FATAL, fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
+    #define hlogd(fmt, ...) logger_print(hlog, LOG_LEVEL_DEBUG, fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
+    #define hlogi(fmt, ...) logger_print(hlog, LOG_LEVEL_INFO,  fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
+    #define hlogw(fmt, ...) logger_print(hlog, LOG_LEVEL_WARN,  fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
+    #define hloge(fmt, ...) logger_print(hlog, LOG_LEVEL_ERROR, fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
+    #define hlogf(fmt, ...) logger_print(hlog, LOG_LEVEL_FATAL, fmt " [%s:%d:%s]", ## __VA_ARGS__, __FILENAME__, __LINE__, __FUNCTION__)
 #endif
-
 
 // below for android
 #if defined(ANDROID) || defined(__ANDROID__)
