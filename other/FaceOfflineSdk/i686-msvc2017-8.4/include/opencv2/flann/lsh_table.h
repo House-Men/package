@@ -36,6 +36,7 @@
 #define OPENCV_FLANN_LSH_TABLE_H_
 
 #include <algorithm>
+#include <random>
 #include <iostream>
 #include <iomanip>
 #include <limits.h>
@@ -346,11 +347,15 @@ inline LshTable<unsigned char>::LshTable(unsigned int feature_size, unsigned int
     initialize(subsignature_size);
     // Allocate the mask
     mask_ = std::vector<size_t>((size_t)ceil((float)(feature_size * sizeof(char)) / (float)sizeof(size_t)), 0);
-
     // A bit brutal but fast to code
     std::vector<size_t> indices(feature_size * CHAR_BIT);
     for (size_t i = 0; i < feature_size * CHAR_BIT; ++i) indices[i] = i;
-    std::random_shuffle(indices.begin(), indices.end());
+    // Use std::shuffle with a random engine (std::random_shuffle is removed in C++17)
+    {
+        std::random_device rd;
+        std::mt19937 rng(rd());
+        std::shuffle(indices.begin(), indices.end(), rng);
+    }
 
     // Generate a random set of order of subsignature_size_ bits
     for (unsigned int i = 0; i < key_size_; ++i) {

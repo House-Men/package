@@ -355,13 +355,12 @@ CV_EXPORTS void error(int _code, const String& _err, const char* _func, const ch
 CV_INLINE CV_NORETURN void errorNoReturn(int _code, const String& _err, const char* _func, const char* _file, int _line)
 {
     error(_code, _err, _func, _file, _line);
-#ifdef __GNUC__
-# if !defined __clang__ && !defined __APPLE__
-    // this suppresses this warning: "noreturn" function does return [enabled by default]
-    __builtin_trap();
-    // or use infinite loop: for (;;) {}
-# endif
-#endif
+    #if defined(__GNUC__) || defined(__clang__)
+        __builtin_trap();
+    #else
+        std::terminate();
+    #endif
+    __builtin_unreachable();
 }
 #ifdef __GNUC__
 # if defined __clang__ || defined __APPLE__

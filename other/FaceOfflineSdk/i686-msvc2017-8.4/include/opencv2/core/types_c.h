@@ -458,7 +458,14 @@ typedef struct CvMat
 
 #ifdef __cplusplus
     CvMat() {}
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnontrivial-memcall"
+#endif
     CvMat(const CvMat& m) { memcpy(this, &m, sizeof(CvMat));}
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
     CvMat(const cv::Mat& m);
 #endif
 
