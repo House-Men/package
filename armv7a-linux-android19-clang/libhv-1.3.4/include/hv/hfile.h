@@ -21,7 +21,15 @@ public:
         close();
         strncpy(this->filepath, filepath, MAX_PATH - 1);
         fp = fopen(filepath, mode);
+#ifndef OS_WIN
+        if (fp) {
+            fcntl(fileno(fp), F_SETFD, fcntl(fileno(fp), F_GETFD) | FD_CLOEXEC);
+            return 0;
+        }
+        return errno;
+#else
         return fp ? 0 : errno;
+#endif
     }
 
     void close() {
