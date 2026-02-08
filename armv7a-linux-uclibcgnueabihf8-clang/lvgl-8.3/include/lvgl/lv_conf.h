@@ -23,19 +23,19 @@
    COLOR SETTINGS
  *====================*/
 /*Color depth: 1 (1 byte per pixel), 8 (RGB332), 16 (RGB565), 32 (ARGB8888)*/
-#define LV_COLOR_DEPTH 16
+#define LV_COLOR_DEPTH 32
 
 /*Swap the 2 bytes of RGB565 color. Useful if the display has an 8-bit interface (e.g. SPI)*/
 #define LV_COLOR_16_SWAP 0
 
-/*Enable features to draw on transparent background.
- *It's required if opa, and transform_* style properties are used.
- *Can be also used if the UI is above another layer, e.g. an OSD menu or video player.*/
-#define LV_COLOR_SCREEN_TRANSP 0
+/*Enable more complex drawing routines to manage screens transparency.
+ *Can be used if the UI is above another layer, e.g. an OSD menu or video player.
+ *Requires `LV_COLOR_DEPTH = 32` colors and the screen's `bg_opa` should be set to non LV_OPA_COVER value*/
+#define LV_COLOR_SCREEN_TRANSP 1
 
 /* Adjust color mix functions rounding. GPUs might calculate color mix (blending) differently.
  * 0: round down, 64: round up from x.75, 128: round up from half, 192: round up from x.25, 254: round up */
-#define LV_COLOR_MIX_ROUND_OFS 0
+#define LV_COLOR_MIX_ROUND_OFS (LV_COLOR_DEPTH == 32 ? 0: 128)
 
 /*Images pixels with this color will not be drawn if they are chroma keyed)*/
 #define LV_COLOR_CHROMA_KEY lv_color_hex(0x00ff00)         /*pure green*/
@@ -48,14 +48,14 @@
 #define LV_MEM_CUSTOM 0
 #if LV_MEM_CUSTOM == 0
     /*Size of the memory available for `lv_mem_alloc()` in bytes (>= 2kB)*/
-    #define LV_MEM_SIZE (20U * 1024U * 1024U)          /*[bytes]*/
+    #define LV_MEM_SIZE (128U * 1024U)          /*[bytes]*/
 
     /*Set an address for the memory pool instead of allocating it as a normal array. Can be in external SRAM too.*/
     #define LV_MEM_ADR 0     /*0: unused*/
     /*Instead of an address give a memory allocator that will be called to get a memory pool for LVGL. E.g. my_malloc*/
     #if LV_MEM_ADR == 0
-        #undef LV_MEM_POOL_INCLUDE
-        #undef LV_MEM_POOL_ALLOC
+        #define LV_MEM_POOL_INCLUDE <stdlib.h>  /* Uncomment if using an external allocator*/
+        #define LV_MEM_POOL_ALLOC   malloc          /* Uncomment if using an external allocator*/
     #endif
 
 #else       /*LV_MEM_CUSTOM*/
@@ -77,7 +77,7 @@
  *====================*/
 
 /*Default display refresh period. LVG will redraw changed areas with this period time*/
-#define LV_DISP_DEF_REFR_PERIOD 16      /*[ms]*/
+#define LV_DISP_DEF_REFR_PERIOD 30      /*[ms]*/
 
 /*Input device read period in milliseconds*/
 #define LV_INDEV_DEF_READ_PERIOD 30     /*[ms]*/
@@ -220,7 +220,7 @@
  *-----------*/
 
 /*Enable the log module*/
-#define LV_USE_LOG 1
+#define LV_USE_LOG 0
 #if LV_USE_LOG
 
     /*How important log should be added:
@@ -234,7 +234,7 @@
 
     /*1: Print the log with 'printf';
     *0: User need to register a callback with `lv_log_register_print_cb()`*/
-    #define LV_LOG_PRINTF 1
+    #define LV_LOG_PRINTF 0
 
     /*Enable/disable LV_LOG_TRACE in modules that produces a huge number of logs*/
     #define LV_LOG_TRACE_MEM        1
@@ -343,7 +343,7 @@
 #define LV_EXPORT_CONST_INT(int_value) struct _silence_gcc_warning /*The default value just prevents GCC warning*/
 
 /*Extend the default -32k..32k coordinate range to -4M..4M by using int32_t for coordinates instead of int16_t*/
-#define LV_USE_LARGE_COORD 0
+#define LV_USE_LARGE_COORD 1
 
 /*==================
  *   FONT USAGE
@@ -351,14 +351,14 @@
 
 /*Montserrat fonts with ASCII range and some symbols using bpp = 4
  *https://fonts.google.com/specimen/Montserrat*/
-#define LV_FONT_MONTSERRAT_8  1
-#define LV_FONT_MONTSERRAT_10 1
-#define LV_FONT_MONTSERRAT_12 1
+#define LV_FONT_MONTSERRAT_8  0
+#define LV_FONT_MONTSERRAT_10 0
+#define LV_FONT_MONTSERRAT_12 0
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_16 1
-#define LV_FONT_MONTSERRAT_18 1
-#define LV_FONT_MONTSERRAT_20 1
-#define LV_FONT_MONTSERRAT_22 1
+#define LV_FONT_MONTSERRAT_18 0
+#define LV_FONT_MONTSERRAT_20 0
+#define LV_FONT_MONTSERRAT_22 0
 #define LV_FONT_MONTSERRAT_24 0
 #define LV_FONT_MONTSERRAT_26 0
 #define LV_FONT_MONTSERRAT_28 0
@@ -389,7 +389,7 @@
 #define LV_FONT_CUSTOM_DECLARE
 
 /*Always set a default font*/
-#define LV_FONT_DEFAULT &lv_font_montserrat_14
+#define LV_FONT_DEFAULT &lv_font_montserrat_16
 
 /*Enable handling large font and/or fonts with a lot of characters.
  *The limit depends on the font size, font face and bpp.
@@ -460,6 +460,8 @@
 
 #define LV_USE_ARC        1
 
+#define LV_USE_ANIMIMG    1
+
 #define LV_USE_BAR        1
 
 #define LV_USE_BTN        1
@@ -505,8 +507,6 @@
 /*-----------
  * Widgets
  *----------*/
-#define LV_USE_ANIMIMG    1
-
 #define LV_USE_CALENDAR   1
 #if LV_USE_CALENDAR
     #define LV_CALENDAR_WEEK_STARTS_MONDAY 0
@@ -539,12 +539,6 @@
 
 #define LV_USE_MSGBOX     1
 
-#define LV_USE_SPAN       1
-#if LV_USE_SPAN
-    /*A line text can contain maximum num of span descriptor */
-    #define LV_SPAN_SNIPPET_STACK_SIZE 64
-#endif
-
 #define LV_USE_SPINBOX    1
 
 #define LV_USE_SPINNER    1
@@ -554,6 +548,12 @@
 #define LV_USE_TILEVIEW   1
 
 #define LV_USE_WIN        1
+
+#define LV_USE_SPAN       1
+#if LV_USE_SPAN
+    /*A line text can contain maximum num of span descriptor */
+    #define LV_SPAN_SNIPPET_STACK_SIZE 64
+#endif
 
 /*-----------
  * Themes
@@ -596,33 +596,33 @@
 /*File system interfaces for common APIs */
 
 /*API for fopen, fread, etc*/
-#define LV_USE_FS_STDIO 1
+#define LV_USE_FS_STDIO 0
 #if LV_USE_FS_STDIO
-    #define LV_FS_STDIO_LETTER 'S'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
+    #define LV_FS_STDIO_LETTER '\0'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
     #define LV_FS_STDIO_PATH ""         /*Set the working directory. File/directory paths will be appended to it.*/
-    #define LV_FS_STDIO_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
+    #define LV_FS_STDIO_CACHE_SIZE  0   /*>0 to cache this number of bytes in lv_fs_read()*/
 #endif
 
 /*API for open, read, etc*/
 #define LV_USE_FS_POSIX 0
 #if LV_USE_FS_POSIX
-    #define LV_FS_POSIX_LETTER 'P'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
+    #define LV_FS_POSIX_LETTER '\0'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
     #define LV_FS_POSIX_PATH ""         /*Set the working directory. File/directory paths will be appended to it.*/
-    #define LV_FS_POSIX_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
+    #define LV_FS_POSIX_CACHE_SIZE  0   /*>0 to cache this number of bytes in lv_fs_read()*/
 #endif
 
 /*API for CreateFile, ReadFile, etc*/
 #define LV_USE_FS_WIN32 0
 #if LV_USE_FS_WIN32
-    #define LV_FS_WIN32_LETTER 'W'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
+    #define LV_FS_WIN32_LETTER  '\0'    /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
     #define LV_FS_WIN32_PATH ""         /*Set the working directory. File/directory paths will be appended to it.*/
     #define LV_FS_WIN32_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
 #endif
 
 /*API for FATFS (needs to be added separately). Uses f_open, f_read, etc*/
-#define LV_USE_FS_FATFS 0
+#define LV_USE_FS_FATFS  0
 #if LV_USE_FS_FATFS
-    #define LV_FS_FATFS_LETTER 'F'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
+    #define LV_FS_FATFS_LETTER '\0'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
     #define LV_FS_FATFS_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
 #endif
 
@@ -643,10 +643,10 @@
 #define LV_USE_QRCODE 1
 
 /*FreeType library*/
-#define LV_USE_FREETYPE 0
+#define LV_USE_FREETYPE 1
 #if LV_USE_FREETYPE
     /*Memory used by FreeType to cache characters [bytes] (-1: no caching)*/
-    #define LV_FREETYPE_CACHE_SIZE (16 * 1024)
+    #define LV_FREETYPE_CACHE_SIZE (64 * 1024)
     #if LV_FREETYPE_CACHE_SIZE >= 0
         /* 1: bitmap cache use the sbit cache, 0:bitmap cache use the image cache. */
         /* sbit cache:it is much more memory efficient for small bitmaps(font size < 256) */
@@ -675,57 +675,57 @@
  *----------*/
 
 /*1: Enable API to take snapshot for object*/
-#define LV_USE_SNAPSHOT 1
+#define LV_USE_SNAPSHOT 0
 
 /*1: Enable Monkey test*/
-#define LV_USE_MONKEY 1
+#define LV_USE_MONKEY 0
 
 /*1: Enable grid navigation*/
-#define LV_USE_GRIDNAV 1
+#define LV_USE_GRIDNAV 0
 
 /*1: Enable lv_obj fragment*/
-#define LV_USE_FRAGMENT 1
+#define LV_USE_FRAGMENT 0
 
 /*1: Support using images as font in label or span widgets */
-#define LV_USE_IMGFONT 1
+#define LV_USE_IMGFONT 0
 
 /*1: Enable a published subscriber based messaging system */
-#define LV_USE_MSG 1
+#define LV_USE_MSG 0
 
 /*==================
 * EXAMPLES
 *==================*/
 
 /*Enable the examples to be built with the library*/
-#define LV_BUILD_EXAMPLES 1
+#define LV_BUILD_EXAMPLES 0
 
 /*===================
  * DEMO USAGE
  ====================*/
 
 /*Show some widget. It might be required to increase `LV_MEM_SIZE` */
-#define LV_USE_DEMO_WIDGETS 0
+#define LV_USE_DEMO_WIDGETS        0
 #if LV_USE_DEMO_WIDGETS
-#define LV_DEMO_WIDGETS_SLIDESHOW 0
+#define LV_DEMO_WIDGETS_SLIDESHOW  0
 #endif
 
 /*Demonstrate the usage of encoder and keyboard*/
-#define LV_USE_DEMO_KEYPAD_AND_ENCODER 0
+#define LV_USE_DEMO_KEYPAD_AND_ENCODER     0
 
 /*Benchmark your system*/
-#define LV_USE_DEMO_BENCHMARK 0
+#define LV_USE_DEMO_BENCHMARK   0
 
 /*Stress test for LVGL*/
-#define LV_USE_DEMO_STRESS 0
+#define LV_USE_DEMO_STRESS      0
 
 /*Music player demo*/
-#define LV_USE_DEMO_MUSIC 1
+#define LV_USE_DEMO_MUSIC       0
 #if LV_USE_DEMO_MUSIC
-    #define LV_DEMO_MUSIC_SQUARE    1
-    #define LV_DEMO_MUSIC_LANDSCAPE 1
-    #define LV_DEMO_MUSIC_ROUND     1
-    #define LV_DEMO_MUSIC_LARGE     0
-    #define LV_DEMO_MUSIC_AUTO_PLAY 0
+# define LV_DEMO_MUSIC_SQUARE       0
+# define LV_DEMO_MUSIC_LANDSCAPE    0
+# define LV_DEMO_MUSIC_ROUND        0
+# define LV_DEMO_MUSIC_LARGE        0
+# define LV_DEMO_MUSIC_AUTO_PLAY    0
 #endif
 
 /*--END OF LV_CONF_H--*/
