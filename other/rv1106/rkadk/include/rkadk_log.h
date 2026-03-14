@@ -28,7 +28,7 @@ extern "C" {
 #define RKADK_LOG_LEVEL_INFO 2
 #define RKADK_LOG_LEVEL_DEBUG 3
 
-#define RKADK_LOG_LEVEL RKADK_LOG_LEVEL_DEBUG
+#define RKADK_LOG_LEVEL RKADK_LOG_LEVEL_WARNING
 
 #define RKADK_LOG_LEVEL_JUDGE(LEVEL)                                           \
   {                                                                            \
