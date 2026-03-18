@@ -1,6 +1,6 @@
 /**
  * @file lv_drv_conf.h
- * Configuration file for v8.3.0-dev
+ * Configuration file for v9.0.0-dev
  */
 
 /*
@@ -110,6 +110,9 @@
 
 /*Open two windows to test multi display support*/
 #  define SDL_DUAL_DISPLAY            0
+
+/* Window Title  */
+#  define SDL_WINDOW_TITLE "TFT Simulator"
 #endif
 
 /*-------------------
@@ -190,6 +193,13 @@
 #  ifndef LV_WAYLAND_XDG_SHELL
 #    define LV_WAYLAND_XDG_SHELL 0
 #  endif
+#endif
+
+/*----------------------------------------
+ *  X11 drivers (monitor, mouse, keyboard)
+ *---------------------------------------*/
+#ifndef USE_X11
+#  define USE_X11       0
 #endif
 
 /*----------------
@@ -338,7 +348,7 @@
  *  DRM/KMS device (/dev/dri/cardX)
  *-----------------------------------------*/
 #ifndef USE_DRM
-#  define USE_DRM           1
+#  define USE_DRM           0
 #endif
 
 #if USE_DRM
@@ -385,7 +395,7 @@
  *  AD TOUCH
  *--------------*/
 #ifndef USE_AD_TOUCH
-#  define USE_AD_TOUCH        0
+#  define USE_AD_TOUCH        1
 #endif
 
 #if USE_AD_TOUCH
@@ -454,9 +464,9 @@
 
 #  if EVDEV_CALIBRATE
 #    define EVDEV_HOR_MIN         0               /*to invert axis swap EVDEV_XXX_MIN by EVDEV_XXX_MAX*/
-#    define EVDEV_HOR_MAX      1024               /*"evtest" Linux tool can help to get the correct calibraion values>*/
+#    define EVDEV_HOR_MAX      4096               /*"evtest" Linux tool can help to get the correct calibraion values>*/
 #    define EVDEV_VER_MIN         0
-#    define EVDEV_VER_MAX      600
+#    define EVDEV_VER_MAX      4096
 #  endif  /*EVDEV_CALIBRATE*/
 #endif  /*USE_EVDEV*/
 

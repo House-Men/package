@@ -253,6 +253,9 @@
             #define LV_TICK_CUSTOM_SYS_TIME_EXPR (millis())    /*Expression evaluating to current system time in ms*/
         #endif
     #endif
+    /*If using lvgl as ESP32 component*/
+    // #define LV_TICK_CUSTOM_INCLUDE "esp_timer.h"
+    // #define LV_TICK_CUSTOM_SYS_TIME_EXPR ((esp_timer_get_time() / 1000LL))
 #endif   /*LV_TICK_CUSTOM*/
 
 /*Default Dot Per Inch. Used to initialize default sizes such as widgets sized, style paddings.
@@ -317,8 +320,6 @@
  * and blend it as an image with the given opacity.
  * Note that `bg_opa`, `text_opa` etc don't require buffering into layer)
  * The widget can be buffered in smaller chunks to avoid using large buffers.
- * `draw_area` (`lv_area_t` meaning the area to draw and `px_size` (size of a pixel in bytes)
- * can be used the set the buffer size adaptively.
  *
  * - LV_LAYER_SIMPLE_BUF_SIZE: [bytes] the optimal target buffer size. LVGL will try to allocate it
  * - LV_LAYER_SIMPLE_FALLBACK_BUF_SIZE: [bytes]  used if `LV_LAYER_SIMPLE_BUF_SIZE` couldn't be allocated.
@@ -338,7 +339,7 @@
     #ifdef CONFIG_LV_LAYER_SIMPLE_FALLBACK_BUF_SIZE
         #define LV_LAYER_SIMPLE_FALLBACK_BUF_SIZE CONFIG_LV_LAYER_SIMPLE_FALLBACK_BUF_SIZE
     #else
-        #define LV_LAYER_SIMPLE_FALLBACK_BUF_SIZE LV_MAX(lv_area_get_width(&draw_area) * px_size, 2048)
+        #define LV_LAYER_SIMPLE_FALLBACK_BUF_SIZE (3 * 1024)
     #endif
 #endif
 
@@ -434,12 +435,32 @@
 #endif
 #if LV_USE_GPU_STM32_DMA2D
     /*Must be defined to include path of CMSIS header of target processor
-    e.g. "stm32f769xx.h" or "stm32f429xx.h"*/
+    e.g. "stm32f7xx.h" or "stm32f4xx.h"*/
     #ifndef LV_GPU_DMA2D_CMSIS_INCLUDE
         #ifdef CONFIG_LV_GPU_DMA2D_CMSIS_INCLUDE
             #define LV_GPU_DMA2D_CMSIS_INCLUDE CONFIG_LV_GPU_DMA2D_CMSIS_INCLUDE
         #else
             #define LV_GPU_DMA2D_CMSIS_INCLUDE
+        #endif
+    #endif
+#endif
+
+/*Enable RA6M3 G2D GPU*/
+#ifndef LV_USE_GPU_RA6M3_G2D
+    #ifdef CONFIG_LV_USE_GPU_RA6M3_G2D
+        #define LV_USE_GPU_RA6M3_G2D CONFIG_LV_USE_GPU_RA6M3_G2D
+    #else
+        #define LV_USE_GPU_RA6M3_G2D 0
+    #endif
+#endif
+#if LV_USE_GPU_RA6M3_G2D
+    /*include path of target processor
+    e.g. "hal_data.h"*/
+    #ifndef LV_GPU_RA6M3_G2D_INCLUDE
+        #ifdef CONFIG_LV_GPU_RA6M3_G2D_INCLUDE
+            #define LV_GPU_RA6M3_G2D_INCLUDE CONFIG_LV_GPU_RA6M3_G2D_INCLUDE
+        #else
+            #define LV_GPU_RA6M3_G2D_INCLUDE "hal_data.h"
         #endif
     #endif
 #endif
@@ -1224,6 +1245,19 @@
         #else
             #define LV_FONT_SUBPX_BGR 0  /*0: RGB; 1:BGR order*/
         #endif
+    #endif
+#endif
+
+/*Enable drawing placeholders when glyph dsc is not found*/
+#ifndef LV_USE_FONT_PLACEHOLDER
+    #ifdef _LV_KCONFIG_PRESENT
+        #ifdef CONFIG_LV_USE_FONT_PLACEHOLDER
+            #define LV_USE_FONT_PLACEHOLDER CONFIG_LV_USE_FONT_PLACEHOLDER
+        #else
+            #define LV_USE_FONT_PLACEHOLDER 0
+        #endif
+    #else
+        #define LV_USE_FONT_PLACEHOLDER 1
     #endif
 #endif
 
@@ -2065,6 +2099,31 @@
     #endif
 #endif
 
+/*API for LittleFS (library needs to be added separately). Uses lfs_file_open, lfs_file_read, etc*/
+#ifndef LV_USE_FS_LITTLEFS
+    #ifdef CONFIG_LV_USE_FS_LITTLEFS
+        #define LV_USE_FS_LITTLEFS CONFIG_LV_USE_FS_LITTLEFS
+    #else
+        #define LV_USE_FS_LITTLEFS 0
+    #endif
+#endif
+#if LV_USE_FS_LITTLEFS
+    #ifndef LV_FS_LITTLEFS_LETTER
+        #ifdef CONFIG_LV_FS_LITTLEFS_LETTER
+            #define LV_FS_LITTLEFS_LETTER CONFIG_LV_FS_LITTLEFS_LETTER
+        #else
+            #define LV_FS_LITTLEFS_LETTER '\0'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
+        #endif
+    #endif
+    #ifndef LV_FS_LITTLEFS_CACHE_SIZE
+        #ifdef CONFIG_LV_FS_LITTLEFS_CACHE_SIZE
+            #define LV_FS_LITTLEFS_CACHE_SIZE CONFIG_LV_FS_LITTLEFS_CACHE_SIZE
+        #else
+            #define LV_FS_LITTLEFS_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
+        #endif
+    #endif
+#endif
+
 /*PNG decoder library*/
 #ifndef LV_USE_PNG
     #ifdef CONFIG_LV_USE_PNG
@@ -2158,6 +2217,25 @@
     #endif
 #endif
 
+/*Tiny TTF library*/
+#ifndef LV_USE_TINY_TTF
+    #ifdef CONFIG_LV_USE_TINY_TTF
+        #define LV_USE_TINY_TTF CONFIG_LV_USE_TINY_TTF
+    #else
+        #define LV_USE_TINY_TTF 0
+    #endif
+#endif
+#if LV_USE_TINY_TTF
+    /*Load TTF data from files*/
+    #ifndef LV_TINY_TTF_FILE_SUPPORT
+        #ifdef CONFIG_LV_TINY_TTF_FILE_SUPPORT
+            #define LV_TINY_TTF_FILE_SUPPORT CONFIG_LV_TINY_TTF_FILE_SUPPORT
+        #else
+            #define LV_TINY_TTF_FILE_SUPPORT 0
+        #endif
+    #endif
+#endif
+
 /*Rlottie library*/
 #ifndef LV_USE_RLOTTIE
     #ifdef CONFIG_LV_USE_RLOTTIE
@@ -2245,6 +2323,62 @@
     #endif
 #endif
 
+/*1: Enable Pinyin input method*/
+/*Requires: lv_keyboard*/
+#ifndef LV_USE_IME_PINYIN
+    #ifdef CONFIG_LV_USE_IME_PINYIN
+        #define LV_USE_IME_PINYIN CONFIG_LV_USE_IME_PINYIN
+    #else
+        #define LV_USE_IME_PINYIN 0
+    #endif
+#endif
+#if LV_USE_IME_PINYIN
+    /*1: Use default thesaurus*/
+    /*If you do not use the default thesaurus, be sure to use `lv_ime_pinyin` after setting the thesauruss*/
+    #ifndef LV_IME_PINYIN_USE_DEFAULT_DICT
+        #ifdef _LV_KCONFIG_PRESENT
+            #ifdef CONFIG_LV_IME_PINYIN_USE_DEFAULT_DICT
+                #define LV_IME_PINYIN_USE_DEFAULT_DICT CONFIG_LV_IME_PINYIN_USE_DEFAULT_DICT
+            #else
+                #define LV_IME_PINYIN_USE_DEFAULT_DICT 0
+            #endif
+        #else
+            #define LV_IME_PINYIN_USE_DEFAULT_DICT 1
+        #endif
+    #endif
+    /*Set the maximum number of candidate panels that can be displayed*/
+    /*This needs to be adjusted according to the size of the screen*/
+    #ifndef LV_IME_PINYIN_CAND_TEXT_NUM
+        #ifdef CONFIG_LV_IME_PINYIN_CAND_TEXT_NUM
+            #define LV_IME_PINYIN_CAND_TEXT_NUM CONFIG_LV_IME_PINYIN_CAND_TEXT_NUM
+        #else
+            #define LV_IME_PINYIN_CAND_TEXT_NUM 6
+        #endif
+    #endif
+
+    /*Use 9 key input(k9)*/
+    #ifndef LV_IME_PINYIN_USE_K9_MODE
+        #ifdef _LV_KCONFIG_PRESENT
+            #ifdef CONFIG_LV_IME_PINYIN_USE_K9_MODE
+                #define LV_IME_PINYIN_USE_K9_MODE CONFIG_LV_IME_PINYIN_USE_K9_MODE
+            #else
+                #define LV_IME_PINYIN_USE_K9_MODE 0
+            #endif
+        #else
+            #define LV_IME_PINYIN_USE_K9_MODE      1
+        #endif
+    #endif
+    #if LV_IME_PINYIN_USE_K9_MODE == 1
+        #ifndef LV_IME_PINYIN_K9_CAND_TEXT_NUM
+            #ifdef CONFIG_LV_IME_PINYIN_K9_CAND_TEXT_NUM
+                #define LV_IME_PINYIN_K9_CAND_TEXT_NUM CONFIG_LV_IME_PINYIN_K9_CAND_TEXT_NUM
+            #else
+                #define LV_IME_PINYIN_K9_CAND_TEXT_NUM 3
+            #endif
+        #endif
+    #endif // LV_IME_PINYIN_USE_K9_MODE
+#endif
+
 /*==================
 * EXAMPLES
 *==================*/
@@ -2300,6 +2434,16 @@
     #else
         #define LV_USE_DEMO_BENCHMARK 0
     #endif
+#endif
+#if LV_USE_DEMO_BENCHMARK
+/*Use RGB565A8 images with 16 bit color depth instead of ARGB8565*/
+#ifndef LV_DEMO_BENCHMARK_RGB565A8
+    #ifdef CONFIG_LV_DEMO_BENCHMARK_RGB565A8
+        #define LV_DEMO_BENCHMARK_RGB565A8 CONFIG_LV_DEMO_BENCHMARK_RGB565A8
+    #else
+        #define LV_DEMO_BENCHMARK_RGB565A8 0
+    #endif
+#endif
 #endif
 
 /*Stress test for LVGL*/
