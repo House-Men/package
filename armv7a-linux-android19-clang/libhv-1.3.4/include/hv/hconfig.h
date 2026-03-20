@@ -98,5 +98,6 @@
 
 #define WITH_WEPOLL    1
 #define WITH_KCP       1
+/* #undef WITH_IO_URING */
 
 #endif // HV_CONFIG_H_

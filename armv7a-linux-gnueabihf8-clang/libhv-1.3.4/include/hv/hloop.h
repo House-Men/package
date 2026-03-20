@@ -233,6 +233,8 @@ const char* hio_engine() {
     return  "iocp";
 #elif defined(EVENT_PORT)
     return  "evport";
+#elif defined(EVENT_IO_URING)
+    return  "io_uring";
 #else
     return  "noevent";
 #endif
@@ -696,6 +698,8 @@ typedef struct kcp_setting_s {
     int mtu;
     // ikcp_update
     int update_interval;
+    // bufsize for ikcp_recv
+    size_t rcv_bufsize;
 
 #ifdef __cplusplus
     kcp_setting_s() {
@@ -715,6 +719,7 @@ typedef struct kcp_setting_s {
         rcvwnd = 0;
         mtu = 1400;
         update_interval = 10; // ms
+        rcv_bufsize = 0;
     }
 #endif
 } kcp_setting_t;
