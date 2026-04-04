@@ -2,9 +2,10 @@
 #
 # Starts dropbear sshd.
 #
-DROPBEAR_ARGS=-e
+DROPBEAR_ARGS="-e"
 # Allow a few customizations from a config file
 test -r /etc/default/dropbear && . /etc/default/dropbear
+export LD_LIBRARY_PATH="/oem/usr/lib":${LD_LIBRARY_PATH}
 
 start() {
 	DROPBEAR_ARGS="$DROPBEAR_ARGS -R"
@@ -29,8 +30,8 @@ start() {
 	printf "Starting dropbear sshd: "
 	umask 077
 
-	start-stop-daemon -S -q -p /var/run/dropbear.pid \
-		--exec /usr/sbin/dropbear -- $DROPBEAR_ARGS
+	start-stop-daemon -S -q -b -p /var/run/dropbear.pid \
+		--exec /oem/usr/sbin/dropbear -- $DROPBEAR_ARGS
 	[ $? = 0 ] && echo "OK" || echo "FAIL"
 }
 stop() {
