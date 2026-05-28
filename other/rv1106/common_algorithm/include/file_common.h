@@ -13,6 +13,7 @@ typedef int (*FILE_CACHE_UMOUMNT_SDCARD)(void);
 typedef enum _FILE_WRITE_MODE {
 	NORMAL_MODE = 0,
 	AOV_MODE,
+	MODE_BUTT,
 } FILE_WRITE_MODE;
 
 typedef enum _FILE_SCHED_POLICY {
