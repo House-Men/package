@@ -28,7 +28,6 @@ extern "C" {
 typedef RKADK_MUXER_FPS_ATTR_S RKADK_RECORD_FPS_ATTR_S;
 typedef RKADK_MUXER_MANUAL_SPLIT_ATTR_S RKADK_REC_MANUAL_SPLIT_ATTR_S;
 typedef RKADK_MUXER_EVENT_CALLBACK_FN RKADK_REC_EVENT_CALLBACK_FN;
-typedef RKADK_MUXER_PTS_CALLBACK_FN RKADK_REC_PTS_CALLBACK_FN;
 typedef RKADK_MUXER_REC_TYPE_E RKADK_REC_TYPE_E;
 
 /* record create file function */
@@ -42,10 +41,8 @@ typedef struct {
   RKADK_U32 u32FragKeyFrame;
   RKADK_REC_REQUEST_FILE_NAMES_FN pfnRequestFileNames; /* rec callbak */
   RKADK_REC_EVENT_CALLBACK_FN pfnEventCallback;      /* event callbak */
-  RKADK_REC_PTS_CALLBACK_FN pfnPtsCallback;      /* pts callbak */
   RKADK_AOV_ATTR_S stAovAttr;
   RKADK_POST_ISP_ATTR_S *pstPostIspAttr;
-  RKADK_MOUMNT_SDCARD_FN pfnMountSdcard;
 } RKADK_RECORD_ATTR_S;
 
 /****************************************************************************/

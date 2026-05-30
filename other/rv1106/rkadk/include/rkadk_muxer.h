@@ -65,17 +65,6 @@ typedef struct {
   } unEventInfo;
 } RKADK_MUXER_EVENT_INFO_S;
 
-typedef struct {
-  RKADK_U32 u32CamId;
-  RKADK_U32 u32ChnId;
-  RKADK_U64 u64PTS;
-  RKADK_U32 u32Seq;
-  const char *pFileName;
-} RKADK_MUXER_PTS_INFO_S;
-
-/* muxer pts callback function */
-typedef RKADK_VOID (*RKADK_MUXER_PTS_CALLBACK_FN)(const RKADK_MUXER_PTS_INFO_S *pstPtsInfo);
-
 /* muxer event callback function */
 typedef RKADK_VOID (*RKADK_MUXER_EVENT_CALLBACK_FN)(
     RKADK_MW_PTR pHandle, const RKADK_MUXER_EVENT_INFO_S *pstEventInfo);
@@ -182,15 +171,13 @@ typedef enum {
   RKADK_REC_TYPE_BUTT,
 } RKADK_MUXER_REC_TYPE_E;
 
-typedef void (*RKADK_ISP_WAKE_UP_PAUSE_FN)(RKADK_U32 u32CamId);
-typedef void (*RKADK_ISP_WAKE_UP_RESUME_FN)(RKADK_U32 u32CamId);
-typedef int (*RKADK_ISP_SET_FRAME_RATE_FN)(RKADK_U32 u32CamId, unsigned int uFps);
-typedef int (*RKADK_MOUMNT_SDCARD_FN)(void);
-
+typedef void (*RKADK_ISP_WAKE_UP_PAUSE)(RKADK_U32 u32CamId);
+typedef void (*RKADK_ISP_WAKE_UP_RESUME)(RKADK_U32 u32CamId);
+typedef int (*RKADK_ISP_SET_FRAME_RATE)(RKADK_U32 u32CamId, unsigned int uFps);
 
 typedef struct {
-  RKADK_ISP_WAKE_UP_PAUSE_FN pfnSingleFrame;
-  RKADK_ISP_WAKE_UP_RESUME_FN pfnMultiFrame;
+  RKADK_ISP_WAKE_UP_PAUSE pfnSingleFrame;
+  RKADK_ISP_WAKE_UP_RESUME pfnMultiFrame;
 } RKADK_AOV_ATTR_S;
 
 /* muxer attribute param */
@@ -204,9 +191,7 @@ typedef struct {
   RKADK_MUXER_PRE_RECORD_ATTR_S stPreRecordAttr;
   RKADK_MUXER_REQUEST_FILE_NAME_CB pcbRequestFileNames;
   RKADK_MUXER_EVENT_CALLBACK_FN pfnEventCallback;
-  RKADK_MUXER_PTS_CALLBACK_FN pfnPtsCallback;
   RKADK_AOV_ATTR_S stAovAttr;
-  RKADK_MOUMNT_SDCARD_FN pfnMountSdcard;
 } RKADK_MUXER_ATTR_S;
 
 typedef enum {
@@ -224,8 +209,6 @@ typedef struct {
   int enableFileCache;
   RKADK_AOV_ATTR_S stAovAttr;
   RKADK_ISP_FRAME_MODE enFrameMode;
-  RKADK_MUXER_PTS_CALLBACK_FN pfnPtsCallback;
-  RKADK_MOUMNT_SDCARD_FN pfnMountSdcard;
 } RKADK_MUXER_HANDLE_S;
 
 /**
@@ -337,7 +320,6 @@ RKADK_S32 RKADK_MUXER_UpdateRes(RKADK_MW_PTR pHandle, RKADK_U32 chnId,
 
 #ifdef FILE_CACHE
 void RKADK_MUXER_FsCacheNotify();
-void RKADK_MUXER_FileCacheInit();
 #endif
 
 #ifdef __cplusplus
