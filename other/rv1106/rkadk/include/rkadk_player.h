@@ -434,6 +434,14 @@ RKADK_S32 RKADK_PLAYER_SendVideoPacket(RKADK_MW_PTR pPlayer,
  */
 RKADK_S32 RKADK_PLAYER_SetVdecWaterline(RKADK_MW_PTR pPlayer, RKADK_U32 u32VdecWaterline);
 
+/**
+ * @brief set ao volume
+ * @param[in] pPlayer : RKADK_MW_PTR: handle of the player
+ * @param[in] s32Volume : ao volume
+ * @retval  0 success, others failed
+ */
+RKADK_S32 RKADK_PLAYER_SetAoVolume(RKADK_MW_PTR pPlayer, RKADK_S32 s32Volume);
+
 #ifdef __cplusplus
 }
 #endif
