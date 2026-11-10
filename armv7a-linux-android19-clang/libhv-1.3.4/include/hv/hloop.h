@@ -30,6 +30,14 @@ typedef void (*hread_cb)    (hio_t* io, void* buf, int readbytes);
 typedef void (*hwrite_cb)   (hio_t* io, const void* buf, int writebytes);
 typedef void (*hclose_cb)   (hio_t* io);
 
+/*
+ * Callback buffer lifetime: buf passed to hread_cb/hwrite_cb is borrowed from
+ * libhv and is valid only until the callback returns. Copy it before retaining
+ * it or using it asynchronously. hio_read/hio_write can deliver a callback
+ * synchronously (for buffered data or an immediately writable socket), so
+ * callback code must tolerate re-entry.
+ */
+
 typedef enum {
     HLOOP_STATUS_STOP,
     HLOOP_STATUS_RUNNING,
@@ -175,6 +183,21 @@ HV_EXPORT uint32_t hloop_nactives(hloop_t* loop);
 HV_EXPORT void  hloop_set_userdata(hloop_t* loop, void* userdata);
 HV_EXPORT void* hloop_userdata(hloop_t* loop);
 
+// per-loop lua_State (used by the lua/ binding layer).
+// The C core treats it as an opaque pointer and never depends on lua.
+// @dtor: optional destructor invoked on this pointer in hloop_cleanup
+//        (e.g. a wrapper around lua_close). Replacing an existing lua_state
+//        does NOT call the previous dtor; the caller manages that.
+HV_EXPORT void  hloop_set_lua_state(hloop_t* loop, void* lua_state, void (*dtor)(void* lua_state));
+HV_EXPORT void* hloop_lua_state(hloop_t* loop);
+
+// per-loop JS runtime (used by the js/ binding layer).
+// The C core treats it as an opaque pointer and never depends on QuickJS.
+// @dtor: optional destructor invoked on this pointer in hloop_cleanup.
+// Replacing an existing js_runtime does NOT call the previous dtor; the caller manages that.
+HV_EXPORT void  hloop_set_js_runtime(hloop_t* loop, void* js_runtime, void (*dtor)(void* js_runtime));
+HV_EXPORT void* hloop_js_runtime(hloop_t* loop);
+
 // custom_event
 /*
  * hevent_t ev;
@@ -229,8 +252,6 @@ const char* hio_engine() {
     return  "epoll";
 #elif defined(EVENT_KQUEUE)
     return  "kqueue";
-#elif defined(EVENT_IOCP)
-    return  "iocp";
 #elif defined(EVENT_PORT)
     return  "evport";
 #elif defined(EVENT_IO_URING)
@@ -329,6 +350,59 @@ HV_EXPORT hssl_ctx_t hio_get_ssl_ctx(hio_t* io);
 HV_EXPORT int         hio_set_hostname(hio_t* io, const char* hostname);
 HV_EXPORT const char* hio_get_hostname(hio_t* io);
 
+// Install a copied proxy configuration on an io. For client-side io,
+// hio_connect() performs the configured proxy handshake before SSL/connect_cb;
+// after it succeeds the connection is transparent and TLS, when enabled, runs
+// against the target. Server proxy factories use this same API to attach their
+// copied listener configuration.
+//
+// IMPORTANT: create the io for the PROXY address, then set the target here:
+//   hio_create_socket(loop, proxy_host, proxy_port, ...);
+//   hio_set_proxy(io, &setting);   // setting carries the final target + auth
+// For a client socket, the socket connects to the proxy and the io layer uses
+// target_* plus credentials for the handshake. proxy_host/proxy_port are kept
+// for reference and higher-level use.
+//
+// The setting is copied. Leave username empty for no auth, or set
+// username/password for auth (SOCKS5 => RFC 1929, HTTP CONNECT => Basic).
+// Client handshake protocols: PROXY_PROTOCOL_SOCKS5 and
+// PROXY_PROTOCOL_HTTP_CONNECT. Set before hio_connect().
+typedef enum {
+    PROXY_PROTOCOL_NONE         = 0,
+    PROXY_PROTOCOL_SOCKS5       = 1,
+    PROXY_PROTOCOL_HTTP_CONNECT = 2,    // HTTP CONNECT tunnel (RFC 7231 4.3.6)
+} proxy_protocol_e;
+
+typedef struct proxy_setting_s {
+    int  protocol;              // proxy_protocol_e
+    char proxy_host[256];       // proxy host (unused by the io layer: the socket
+                                // is already the proxy connection; kept for ref)
+    int  proxy_port;
+    char target_host[256];      // final target the proxy should CONNECT to
+    int  target_port;
+    char username[256];         // empty => no auth
+    char password[256];
+#ifdef __cplusplus
+    proxy_setting_s() {
+        protocol = PROXY_PROTOCOL_SOCKS5;
+        proxy_host[0] = '\0';
+        proxy_port = 0;
+        target_host[0] = '\0';
+        target_port = 0;
+        username[0] = '\0';
+        password[0] = '\0';
+    }
+#endif
+} proxy_setting_t;
+HV_EXPORT int  hio_set_proxy(hio_t* io, const proxy_setting_t* setting);
+
+// Server-side proxy factories. The setting is copied. Here proxy_host/proxy_port
+// is the local listening endpoint; target_host/target_port is the fixed upstream
+// for TCP and UDP. SOCKS5 gets its target from each client request.
+HV_EXPORT hio_t* hloop_create_tcp_proxy_server(hloop_t* loop, const proxy_setting_t* setting);
+HV_EXPORT hio_t* hloop_create_udp_proxy_server(hloop_t* loop, const proxy_setting_t* setting);
+HV_EXPORT hio_t* hloop_create_socks5_proxy_server(hloop_t* loop, const proxy_setting_t* setting);
+
 // connect timeout => hclose_cb
 HV_EXPORT void hio_set_connect_timeout(hio_t* io, int timeout_ms DEFAULT(HIO_DEFAULT_CONNECT_TIMEOUT));
 // close timeout => hclose_cb
@@ -355,6 +429,8 @@ HV_EXPORT void hio_set_heartbeat(hio_t* io, int interval_ms, hio_send_heartbeat_
 HV_EXPORT int hio_accept (hio_t* io);
 
 // connect => hio_add(io, HV_WRITE) => hconnect_cb
+// hconnect_cb means the application connection is ready: any configured proxy
+// and TLS handshakes have completed. It is not merely TCP connect completion.
 HV_EXPORT int hio_connect(hio_t* io);
 
 // hio_add(io, HV_READ) => read => hread_cb
@@ -376,12 +452,15 @@ HV_EXPORT int hio_read_remain(hio_t* io);
 #define hio_read_until(io, len) hio_read_until_length(io, len)
 
 // NOTE: hio_write is thread-safe, locked by recursive_mutex, allow to be called by other threads.
-// hio_try_write => hio_add(io, HV_WRITE) => write => hwrite_cb
+// hio_try_write => hio_add(io, HV_WRITE) => write => hwrite_cb. hwrite_cb
+// reports bytes written, not completion of a logical application message; use
+// hio_write_is_complete(io) to determine whether the write queue is empty.
 HV_EXPORT int hio_write  (hio_t* io, const void* buf, size_t len);
 HV_EXPORT int hio_sendto (hio_t* io, const void* buf, size_t len, struct sockaddr* addr);
 
 // NOTE: hio_close is thread-safe, hio_close_async will be called actually in other thread.
-// hio_del(io, HV_RDWR) => close => hclose_cb
+// hio_del(io, HV_RDWR) => close => hclose_cb. hclose_cb is invoked at most once
+// per hio lifecycle and is the place to release connection-associated state.
 HV_EXPORT int hio_close  (hio_t* io);
 // NOTE: hloop_post_event(hio_close_event)
 HV_EXPORT int hio_close_async(hio_t* io);
@@ -430,6 +509,11 @@ HV_EXPORT hio_t* hloop_create_tcp_server (hloop_t* loop, const char* host, int p
 // @tcp_client: hio_create_socket(loop, host, port, HIO_TYPE_TCP, HIO_CLIENT_SIDE) -> hio_setcb_connect -> hio_setcb_close -> hio_connect
 // @see examples/nc.c
 HV_EXPORT hio_t* hloop_create_tcp_client (hloop_t* loop, const char* host, int port, hconnect_cb connect_cb, hclose_cb close_cb);
+// @socks5_client: hio_create_socket(proxy) -> hio_set_proxy -> hio_connect
+// The setting is copied; protocol is forced to PROXY_PROTOCOL_SOCKS5.
+// @see examples/socks5_client_test.c
+HV_EXPORT hio_t* hloop_create_socks5_client(hloop_t* loop, const proxy_setting_t* setting,
+                                            hconnect_cb connect_cb, hclose_cb close_cb);
 
 // @ssl_server: hio_create_socket(loop, host, port, HIO_TYPE_SSL, HIO_SERVER_SIDE) -> hio_setcb_accept -> hio_accept
 // @see examples/tcp_echo_server.c => #define TEST_SSL 1

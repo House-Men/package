@@ -4,6 +4,7 @@
 #include <functional>
 #include <queue>
 #include <map>
+#include <memory>
 #include <mutex>
 
 #include "hloop.h"
@@ -17,7 +18,14 @@ namespace hv {
 
 // EventLoop is a loop-bound wrapper around hloop_t.
 // When constructed with an external hloop_t, the caller remains responsible for that loop's lifetime.
-class EventLoop : public Status {
+//
+// Inherits enable_shared_from_this so code holding a raw EventLoop* (e.g. from
+// currentThreadEventLoop / TLS) can recover a shared EventLoopPtr that shares
+// ownership with the original shared_ptr (see currentThreadEventLoopPtr). This
+// requires the EventLoop to be managed by a shared_ptr (make_shared<EventLoop>);
+// calling shared_from_this() on a stack/`new`-constructed EventLoop throws
+// std::bad_weak_ptr.
+class EventLoop : public Status, public std::enable_shared_from_this<EventLoop> {
 public:
 
     typedef std::function<void()> Functor;
@@ -36,6 +44,7 @@ public:
         }
         connectionNum = 0;
         nextTimerID = 0;
+        nextDnsID = 0;
         setStatus(kInitialized);
     }
 
@@ -55,6 +64,19 @@ public:
         setStatus(kRunning);
         hloop_run(loop_);
         setStatus(kStopped);
+        if (ThreadLocalStorage::get(ThreadLocalStorage::EVENT_LOOP) == this) {
+            ThreadLocalStorage::set(ThreadLocalStorage::EVENT_LOOP, NULL);
+        }
+        // An owned loop is created with HLOOP_FLAG_AUTO_FREE, so hloop_run() has
+        // already freed the hloop_t by the time it returns. Drop the now-dangling
+        // pointer so a later stop()/~EventLoop doesn't touch freed memory. This
+        // matters when the loop was stopped via the raw C hloop_stop() (e.g. the
+        // Lua binding's hv.stop()) rather than EventLoop::stop(), which would
+        // otherwise have nulled loop_ itself. A non-owned (external) loop is left
+        // untouched — the caller owns its lifetime.
+        if (is_loop_owner) {
+            loop_ = NULL;
+        }
     }
 
     // stop thread-safe
@@ -153,6 +175,34 @@ public:
         return hloop_tid(loop_);
     }
 
+    // DNS interfaces: resolveDns, cancelDns (mirror setTimer/killTimer).
+    // resolveDns returns a use-after-free-proof DnsID: the EventLoop keeps a
+    // DnsID -> DnsQuery map, and a stale id (completed/cancelled) makes
+    // cancelDns() a safe no-op. @cb runs in the loop thread.
+    // NOTE: must be called from the loop thread.
+    DnsID resolveDns(const char* host, DnsCallback cb, const hdns_setting_t* opt = NULL) {
+        if (loop_ == NULL) return INVALID_DNS_ID;
+        assertInLoopThread();
+        DnsID dnsID = generateDnsID();
+        hdns_t* q = hdns_resolve_ex(loop_, host, opt, onDnsResolved, this);
+        if (q == NULL) return INVALID_DNS_ID;
+        // stash the DnsID in the query's event_id so completion can find us.
+        hevent_set_id(q, dnsID);
+        dns_queries[dnsID] = std::make_shared<DnsQuery>(q, std::move(cb));
+        return dnsID;
+    }
+
+    // cancelDns thread-safe
+    void cancelDns(DnsID dnsID) {
+        runInLoop([dnsID, this]() {
+            auto iter = dns_queries.find(dnsID);
+            if (iter != dns_queries.end()) {
+                if (iter->second->query) hdns_cancel(iter->second->query);
+                dns_queries.erase(iter);
+            }
+        });
+    }
+
     bool isInLoopThread() {
         if (loop_ == NULL) return false;
         return hv_gettid() == hloop_tid(loop_);
@@ -196,6 +246,11 @@ private:
         return (((TimerID)tid() & 0xFFFFFFFF) << 32) | ++nextTimerID;
     }
 
+    DnsID generateDnsID() {
+        // start at 1; 0 == INVALID_DNS_ID. 64-bit monotonic, never reused.
+        return ++nextDnsID;
+    }
+
     static void onTimer(htimer_t* htimer) {
         EventLoop* loop = (EventLoop*)hevent_userdata(htimer);
 
@@ -228,6 +283,22 @@ private:
         if (ev && ev->cb) ev->cb(ev.get());
     }
 
+    // C hdns completion callback (runs in loop thread). userdata == EventLoop*.
+    // The DnsID rode along in the query's event_id (set in resolveDns), so we
+    // recover it from the handle, deliver to the C++ callback, and erase the
+    // map entry. Erase BEFORE invoking the user callback so a re-entrant
+    // cancelDns() for this id safely no-ops. The hdns_t is freed by the C
+    // resolver right after this returns; we never touch it afterwards.
+    static void onDnsResolved(hdns_t* query, const hdns_result_t* result, void* userdata) {
+        EventLoop* loop = (EventLoop*)userdata;
+        DnsID dnsID = (DnsID)hevent_id(query);
+        auto iter = loop->dns_queries.find(dnsID);
+        if (iter == loop->dns_queries.end()) return;
+        DnsCallback cb = std::move(iter->second->cb);
+        loop->dns_queries.erase(iter);
+        if (cb) cb(result->status, result->naddrs, result->addrs);
+    }
+
 public:
     std::atomic<uint32_t>       connectionNum;  // for LB_LeastConnections
 private:
@@ -237,6 +308,8 @@ private:
     std::queue<EventPtr>        customEvents;   // GUAREDE_BY(mutex_)
     std::map<TimerID, TimerPtr> timers;
     std::atomic<TimerID>        nextTimerID;
+    std::map<DnsID, DnsQueryPtr> dns_queries;
+    std::atomic<DnsID>          nextDnsID;
 };
 
 typedef std::shared_ptr<EventLoop> EventLoopPtr;
@@ -246,6 +319,24 @@ static inline EventLoop* tlsEventLoop() {
     return (EventLoop*)ThreadLocalStorage::get(ThreadLocalStorage::EVENT_LOOP);
 }
 #define currentThreadEventLoop ::hv::tlsEventLoop()
+
+// Get the current thread's EventLoop as a shared_ptr, sharing ownership with
+// whoever created it. Returns NULL if there is no current loop, or if it is not
+// managed by a shared_ptr (e.g. a stack-constructed EventLoop) — in which case
+// shared_from_this() would throw std::bad_weak_ptr, caught here. Callers should
+// treat NULL as "no shared loop available" rather than crash.
+// Used e.g. to hand the current loop to AsyncHttpClient/AsyncRedisClient so they
+// run on this same loop thread instead of spawning their own.
+static inline EventLoopPtr tlsEventLoopPtr() {
+    EventLoop* loop = tlsEventLoop();
+    if (loop == NULL) return EventLoopPtr();
+    try {
+        return loop->shared_from_this();
+    } catch (const std::bad_weak_ptr&) {
+        return EventLoopPtr();
+    }
+}
+#define currentThreadEventLoopPtr ::hv::tlsEventLoopPtr()
 
 static inline TimerID setTimer(int timeout_ms, TimerCallback cb, uint32_t repeat = INFINITE) {
     EventLoop* loop = tlsEventLoop();

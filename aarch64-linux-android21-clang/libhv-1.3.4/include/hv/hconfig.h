@@ -100,4 +100,7 @@
 #define WITH_KCP       1
 /* #undef WITH_IO_URING */
 
+/* #undef WITH_LUA */
+/* #undef WITH_JS */
+
 #endif // HV_CONFIG_H_

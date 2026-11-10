@@ -17,6 +17,13 @@ public:
         SEND_CHUNKED_END,
         SEND_END,
     } state: 8, end: 8;
+    // HTTP/2: set by HttpHandler when the connection is h2. The raw HTTP/1
+    // serialization in this writer cannot produce h2 frames, so on h2 the
+    // one-shot response (End / WriteResponse) is funneled through this hook,
+    // which submits the response via the handler's nghttp2 session on the IO
+    // loop thread. Streaming (WriteChunked/SSE) over h2 is not supported.
+    std::function<void()> submitHttp2Response;
+
     HttpResponseWriter(hio_t* io, const HttpResponsePtr& resp)
         : SocketChannel(io)
         , response(resp)
@@ -24,6 +31,14 @@ public:
         , end(SEND_BEGIN)
     {}
     ~HttpResponseWriter() {}
+
+    bool isHttp2() const { return (bool)submitHttp2Response; }
+
+    // isBegin(): nothing has been written yet (still at SEND_BEGIN).
+    // isEnd():   the response has been fully handed off, i.e. End() was called
+    //            (End() is the terminal call in every usage sequence below).
+    bool isBegin() const { return state == SEND_BEGIN; }
+    bool isEnd() const { return end == SEND_END; }
 
     // Begin -> End
     // Begin -> WriteResponse -> End

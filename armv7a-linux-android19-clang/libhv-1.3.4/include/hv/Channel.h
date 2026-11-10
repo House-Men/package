@@ -22,6 +22,7 @@ public:
         fd_ = -1;
         id_ = 0;
         ctx_ = NULL;
+        error_ = 0;
         status = CLOSED;
         if (io) {
             fd_ = hio_fd(io);
@@ -56,7 +57,13 @@ public:
     hio_t*      io() { return io_; }
     int         fd() { return fd_; }
     uint32_t    id() { return id_; }
-    int error() { return hio_error(io_); }
+    // Returns the failure reason. An explicitly-set error (setError, e.g. a DNS
+    // resolve failure before any io exists) takes precedence; otherwise the
+    // io-layer error is returned. Null-safe: a NULL-io channel returns error_.
+    int error() { return error_ ? error_ : (io_ ? hio_error(io_) : 0); }
+    // Set an upper-layer error reason (e.g. ERR_DNS_RESOLVE) to be surfaced via
+    // error(). Useful when there is no io_ to carry the error.
+    void setError(int err) { error_ = err; }
 
     // context
     void* context() {
@@ -194,6 +201,7 @@ public:
     int         fd_;
     uint32_t    id_;
     void*       ctx_;
+    int         error_;     // upper-layer error (e.g. ERR_DNS_RESOLVE); see error()
     enum Status {
         OPENED,
         CONNECTING,
@@ -202,8 +210,14 @@ public:
         CLOSED,
     };
     std::atomic<Status>          status;
+    // NOTE: The Buffer* passed to onread/onwrite is only a read-only VIEW over
+    // libhv's internal IO buffer -- it does NOT own the memory. Do not call
+    // mutating methods (resize/copy) on it: they call hv_realloc on a pointer
+    // Buffer does not own and will corrupt memory / crash. To keep the data,
+    // copy it out into your own buffer (e.g. std::string(buf->data(), buf->size())).
     std::function<void(Buffer*)> onread;
     // NOTE: Use Channel::isWriteComplete in onwrite callback to determine whether all data has been written.
+    // See the onread note above: the Buffer* here is also a non-owning view; do not resize/copy it in place.
     std::function<void(Buffer*)> onwrite;
     std::function<void()>        onclose;
     std::shared_ptr<void>        contextPtr_;
@@ -270,6 +284,12 @@ public:
     int setHostname(const std::string& hostname) {
         if (io_ == NULL) return -1;
         return hio_set_hostname(io_, hostname.c_str());
+    }
+
+    // Client-side proxy; see hio_set_proxy.
+    int setProxy(proxy_setting_t* setting) {
+        if (io_ == NULL) return -1;
+        return hio_set_proxy(io_, setting);
     }
 
     // timeout
